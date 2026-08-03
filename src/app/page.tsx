@@ -11,6 +11,7 @@ import type {
 import { ROSTER_SLOTS } from "@/lib/roster";
 import { promptForSlot } from "@/data/prompts";
 import { RANDOM_DECK_ID } from "@/lib/decks";
+import { BUILT_IN_DECKS } from "@/lib/builtInDecks";
 import { lookupPick } from "@/lib/playerData";
 import { pointsFor } from "@/lib/scoring";
 import {
@@ -71,7 +72,8 @@ export default function Home() {
     if (decks !== null) saveDecks(decks);
   }, [decks]);
 
-  const deckList = decks ?? [];
+  const customDecks = decks ?? [];
+  const deckList = [...BUILT_IN_DECKS, ...customDecks];
 
   const startGame = (
     names: string[],
@@ -182,7 +184,6 @@ export default function Home() {
   };
 
   const markBrick = () => applyPick({ status: "brick", points: 0 });
-  const handleTimeout = () => applyPick({ status: "brick", points: 0 });
 
   const revealNext = () => {
     setState((prev) => ({
@@ -232,7 +233,8 @@ export default function Home() {
     return (
       <SetupScreen
         onStart={startGame}
-        decks={deckList}
+        builtInDecks={BUILT_IN_DECKS}
+        customDecks={customDecks}
         onCreateDeck={createDeck}
         onUpdateDeck={updateDeck}
         onDeleteDeck={deleteDeck}
@@ -254,7 +256,6 @@ export default function Home() {
       revealIndex={state.revealIndex}
       onLockValid={lockValidPick}
       onMarkBrick={markBrick}
-      onTimeout={handleTimeout}
       onRevealNext={revealNext}
       onPlayAgain={playAgain}
       onNewGame={newGame}

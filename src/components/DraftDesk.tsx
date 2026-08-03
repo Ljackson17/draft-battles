@@ -28,7 +28,6 @@ interface Props {
   revealIndex: number;
   onLockValid: (name: string, season: number) => void;
   onMarkBrick: () => void;
-  onTimeout: () => void;
   onRevealNext: () => void;
   onPlayAgain: () => void;
   onNewGame: () => void;
@@ -47,7 +46,6 @@ export default function DraftDesk({
   revealIndex,
   onLockValid,
   onMarkBrick,
-  onTimeout,
   onRevealNext,
   onPlayAgain,
   onNewGame,
@@ -81,11 +79,28 @@ export default function DraftDesk({
                 : `Revealing ${revealIndex + 1} / ${ROSTER_SLOTS.length} — ${SLOT_LABELS[revealSlot!]}`)}
           </span>
         </div>
-        {gmName && (
-          <span className="font-heading text-sm uppercase tracking-wide text-[var(--text-muted)]">
-            GM &middot; <span className="text-[var(--text)]">{gmName}</span>
-          </span>
-        )}
+        <div className="flex items-center gap-4">
+          {gmName && (
+            <span className="font-heading text-sm uppercase tracking-wide text-[var(--text-muted)]">
+              GM &middot; <span className="text-[var(--text)]">{gmName}</span>
+            </span>
+          )}
+          <button
+            onClick={() => {
+              if (
+                phase === "reveal" ||
+                window.confirm(
+                  "Leave this draft and go back to the home screen? Current progress will be lost.",
+                )
+              ) {
+                onNewGame();
+              }
+            }}
+            className="rounded-lg border border-[var(--line)] px-3 py-1.5 font-heading text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--text-faint)]"
+          >
+            Home
+          </button>
+        </div>
       </header>
 
       <div className="grid min-h-0 flex-1 grid-cols-[300px_1fr_320px] gap-4 p-4">
@@ -188,7 +203,6 @@ export default function DraftDesk({
               usedPlayerSeasons={usedPlayerSeasons}
               onLockValid={onLockValid}
               onMarkBrick={onMarkBrick}
-              onTimeout={onTimeout}
             />
           )}
 
@@ -239,7 +253,6 @@ function PickPanel({
   usedPlayerSeasons,
   onLockValid,
   onMarkBrick,
-  onTimeout,
 }: {
   activePlayer: GamePlayer;
   activePlayerIndex: number;
@@ -248,27 +261,25 @@ function PickPanel({
   usedPlayerSeasons: Set<string>;
   onLockValid: (name: string, season: number) => void;
   onMarkBrick: () => void;
-  onTimeout: () => void;
 }) {
   const [timeLeft, setTimeLeft] = useState(timerSeconds);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const expired = timeLeft === 0;
 
   useEffect(() => {
+    if (isPaused || expired) return;
     const interval = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          clearInterval(interval);
-          return 0;
-        }
-        return t - 1;
-      });
+      setTimeLeft((t) => (t <= 1 ? 0 : t - 1));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isPaused, expired]);
 
-  useEffect(() => {
-    if (timeLeft === 0) onTimeout();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeLeft]);
+  const togglePause = () => setIsPaused((p) => !p);
+  const restartClock = () => {
+    setTimeLeft(timerSeconds);
+    setIsPaused(false);
+  };
 
   return (
     <div className="flex flex-1 flex-col gap-5">
@@ -289,13 +300,29 @@ function PickPanel({
         </div>
       </div>
 
-      <div className="flex justify-center">
+      <div className="flex flex-col items-center gap-3">
         <PlayClock timeLeft={timeLeft} totalTime={timerSeconds} />
+        <div className="flex gap-2">
+          <button
+            onClick={togglePause}
+            disabled={expired}
+            className="rounded-lg border border-[var(--line)] px-3 py-1.5 font-heading text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--text-faint)] disabled:opacity-40"
+          >
+            {isPaused ? "Resume" : "Pause"}
+          </button>
+          <button
+            onClick={restartClock}
+            className="rounded-lg border border-[var(--line)] px-3 py-1.5 font-heading text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--text-faint)]"
+          >
+            Restart
+          </button>
+        </div>
       </div>
 
       <p className="text-center text-xs text-[var(--text-faint)]">
-        Enter the pick they call out, or mark it a brick if it doesn&apos;t
-        satisfy the prompt. Picks hit the board immediately.
+        {expired
+          ? "Time's up — call it a pick or a brick when ready."
+          : "Enter the pick they call out, or mark it a brick if it doesn't satisfy the prompt. Picks hit the board immediately."}
       </p>
 
       <PlayerPicker

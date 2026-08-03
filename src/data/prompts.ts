@@ -1,5 +1,6 @@
 import type { Prompt, PromptDeck } from "@/lib/types";
 import { RANDOM_DECK_ID } from "@/lib/decks";
+import { ROSTER_SLOTS } from "@/lib/roster";
 
 // BDGE-style draft prompts. Legality of a pick against the prompt is judged
 // by the group (honor system) — the app only handles scoring once a
@@ -76,7 +77,8 @@ export function promptForSlot(
 ): { prompt: Prompt; usedPromptIds: number[] } {
   if (deckId !== RANDOM_DECK_ID) {
     const deck = decks.find((d) => d.id === deckId);
-    const text = deck?.prompts[slotIndex]?.trim();
+    const slot = ROSTER_SLOTS[slotIndex];
+    const text = deck?.prompts[slot]?.trim();
     if (text) {
       return { prompt: { id: -(slotIndex + 1), text }, usedPromptIds };
     }

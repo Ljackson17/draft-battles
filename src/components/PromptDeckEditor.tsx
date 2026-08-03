@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { PromptDeck } from "@/lib/types";
+import type { PromptDeck, RosterSlot } from "@/lib/types";
 import { ROSTER_SLOTS, SLOT_LABELS } from "@/lib/roster";
 import { emptyDeckPrompts, isDeckComplete } from "@/lib/decks";
 
@@ -17,12 +17,12 @@ export default function PromptDeckEditor({
   onCancel,
 }: Props) {
   const [name, setName] = useState(initialDeck?.name ?? "");
-  const [prompts, setPrompts] = useState<string[]>(
+  const [prompts, setPrompts] = useState<Record<RosterSlot, string>>(
     initialDeck?.prompts ?? emptyDeckPrompts(),
   );
 
-  const updatePrompt = (i: number, value: string) => {
-    setPrompts((prev) => prev.map((p, idx) => (idx === i ? value : p)));
+  const updatePrompt = (slot: RosterSlot, value: string) => {
+    setPrompts((prev) => ({ ...prev, [slot]: value }));
   };
 
   const canSave = name.trim().length > 0 && isDeckComplete(prompts);
@@ -49,8 +49,8 @@ export default function PromptDeckEditor({
               Round {i + 1} &middot; {SLOT_LABELS[slot]}
             </label>
             <textarea
-              value={prompts[i]}
-              onChange={(e) => updatePrompt(i, e.target.value)}
+              value={prompts[slot]}
+              onChange={(e) => updatePrompt(slot, e.target.value)}
               rows={2}
               placeholder="What must the pick satisfy?"
               className="w-full resize-none rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none placeholder:text-[var(--text-faint)] focus:border-[var(--amber)]"
@@ -66,7 +66,9 @@ export default function PromptDeckEditor({
             onSave({
               id: initialDeck?.id ?? crypto.randomUUID(),
               name: name.trim(),
-              prompts: prompts.map((p) => p.trim()),
+              prompts: Object.fromEntries(
+                ROSTER_SLOTS.map((slot) => [slot, prompts[slot].trim()]),
+              ) as Record<RosterSlot, string>,
             })
           }
           className="flex-1 rounded-lg bg-[var(--amber)] py-2.5 font-heading text-sm font-bold uppercase tracking-wide text-[#1a1204] transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"

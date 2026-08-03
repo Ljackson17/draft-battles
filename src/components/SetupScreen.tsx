@@ -13,7 +13,8 @@ interface Props {
     gmName: string,
     settings: GameSettings,
   ) => void;
-  decks: PromptDeck[];
+  builtInDecks: PromptDeck[];
+  customDecks: PromptDeck[];
   onCreateDeck: (deck: PromptDeck) => void;
   onUpdateDeck: (deck: PromptDeck) => void;
   onDeleteDeck: (id: string) => void;
@@ -21,7 +22,8 @@ interface Props {
 
 export default function SetupScreen({
   onStart,
-  decks,
+  builtInDecks,
+  customDecks,
   onCreateDeck,
   onUpdateDeck,
   onDeleteDeck,
@@ -163,7 +165,26 @@ export default function SetupScreen({
             </span>
           </button>
 
-          {decks.map((deck) => (
+          {builtInDecks.map((deck) => (
+            <div
+              key={deck.id}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 transition ${
+                deckId === deck.id
+                  ? "border-[var(--amber)] bg-[color-mix(in_srgb,var(--amber)_14%,transparent)]"
+                  : "border-[var(--line)] hover:border-[var(--text-faint)]"
+              }`}
+            >
+              <button
+                onClick={() => setDeckId(deck.id)}
+                className="flex-1 text-left font-heading text-sm font-semibold uppercase tracking-wide text-[var(--text)]"
+              >
+                {deck.name}
+              </button>
+              <span className="text-xs text-[var(--text-faint)]">built-in</span>
+            </div>
+          ))}
+
+          {customDecks.map((deck) => (
             <div
               key={deck.id}
               className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 transition ${
