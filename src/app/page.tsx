@@ -7,6 +7,7 @@ import type {
   GameState,
   PromptDeck,
   RosterPick,
+  RosterSlot,
 } from "@/lib/types";
 import { ROSTER_SLOTS } from "@/lib/roster";
 import { promptForSlot } from "@/data/prompts";
@@ -185,6 +186,58 @@ export default function Home() {
 
   const markBrick = () => applyPick({ status: "brick", points: 0 });
 
+  /** Lets the GM fix a misclick on an already-entered pick, without
+   * touching turn order or advancing the slot — only that one cell
+   * changes. `pick` of null clears the slot back to empty. */
+  const editPick = (playerId: string, slot: RosterSlot, pick: RosterPick | null) => {
+    setState((prev) => {
+      const oldPick = prev.players.find((p) => p.id === playerId)?.roster[
+        slot
+      ];
+      const usedPlayerSeasons = new Set(prev.usedPlayerSeasons);
+      if (oldPick?.status === "filled") {
+        usedPlayerSeasons.delete(`${oldPick.playerName}|${oldPick.season}`);
+      }
+      if (pick?.status === "filled") {
+        usedPlayerSeasons.add(`${pick.playerName}|${pick.season}`);
+      }
+      const players = prev.players.map((p) => {
+        if (p.id !== playerId) return p;
+        const roster = { ...p.roster };
+        if (pick) {
+          roster[slot] = pick;
+        } else {
+          delete roster[slot];
+        }
+        return { ...p, roster };
+      });
+      return { ...prev, players, usedPlayerSeasons };
+    });
+  };
+
+  const editLockValid = (
+    playerId: string,
+    slot: RosterSlot,
+    name: string,
+    season: number,
+  ) => {
+    const found = lookupPick(name, season);
+    if (!found) return;
+    const points = pointsFor(
+      state.settings.scoring,
+      found.fantasyPoints,
+      found.fantasyPointsPpr,
+    );
+    editPick(playerId, slot, {
+      status: "filled",
+      playerName: name,
+      season,
+      position: found.position,
+      team: found.team,
+      points,
+    });
+  };
+
   const revealNext = () => {
     setState((prev) => ({
       ...prev,
@@ -256,6 +309,11 @@ export default function Home() {
       revealIndex={state.revealIndex}
       onLockValid={lockValidPick}
       onMarkBrick={markBrick}
+      onEditLockValid={editLockValid}
+      onEditMarkBrick={(playerId, slot) =>
+        editPick(playerId, slot, { status: "brick", points: 0 })
+      }
+      onClearPick={(playerId, slot) => editPick(playerId, slot, null)}
       onRevealNext={revealNext}
       onPlayAgain={playAgain}
       onNewGame={newGame}

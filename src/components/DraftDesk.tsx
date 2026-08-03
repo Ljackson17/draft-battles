@@ -28,6 +28,14 @@ interface Props {
   revealIndex: number;
   onLockValid: (name: string, season: number) => void;
   onMarkBrick: () => void;
+  onEditLockValid: (
+    playerId: string,
+    slot: RosterSlot,
+    name: string,
+    season: number,
+  ) => void;
+  onEditMarkBrick: (playerId: string, slot: RosterSlot) => void;
+  onClearPick: (playerId: string, slot: RosterSlot) => void;
   onRevealNext: () => void;
   onPlayAgain: () => void;
   onNewGame: () => void;
@@ -46,6 +54,9 @@ export default function DraftDesk({
   revealIndex,
   onLockValid,
   onMarkBrick,
+  onEditLockValid,
+  onEditMarkBrick,
+  onClearPick,
   onRevealNext,
   onPlayAgain,
   onNewGame,
@@ -189,6 +200,10 @@ export default function DraftDesk({
             players={players}
             activePlayerId={phase === "draft" ? activePlayerId : undefined}
             revealedCount={phase === "reveal" ? revealIndex : 0}
+            usedPlayerSeasons={usedPlayerSeasons}
+            onEditLockValid={phase === "draft" ? onEditLockValid : undefined}
+            onEditMarkBrick={phase === "draft" ? onEditMarkBrick : undefined}
+            onClearPick={phase === "draft" ? onClearPick : undefined}
           />
         </main>
 

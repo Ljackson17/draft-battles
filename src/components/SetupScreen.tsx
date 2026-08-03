@@ -33,9 +33,9 @@ export default function SetupScreen({
   const [timerSeconds, setTimerSeconds] = useState(30);
   const [scoring, setScoring] = useState<"standard" | "ppr">("ppr");
   const [deckId, setDeckId] = useState<string>(RANDOM_DECK_ID);
-  const [editingDeck, setEditingDeck] = useState<
-    "new" | PromptDeck | null
-  >(null);
+  const [editingDeck, setEditingDeck] = useState<"new" | PromptDeck | null>(
+    null,
+  );
 
   const updateName = (i: number, value: string) => {
     setNames((prev) => prev.map((n, idx) => (idx === i ? value : n)));
@@ -49,7 +49,7 @@ export default function SetupScreen({
   const validNames = trimmed.filter((n) => n.length > 0);
   const hasDupes =
     new Set(validNames.map((n) => n.toLowerCase())).size !== validNames.length;
-  const canStart = validNames.length >= 2 && !hasDupes;
+  const canStart = validNames.length >= 1 && !hasDupes;
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-2xl flex-col justify-center gap-8 px-6 py-16">
@@ -58,9 +58,8 @@ export default function SetupScreen({
           DRAFT BATTLES
         </h1>
         <p className="mt-2 max-w-md text-[var(--text-muted)]">
-          Build an {ROSTER_SLOTS.length}-slot fantasy roster off prompts,
-          scored on real NFL stats from 1970&ndash;2025. A Game Master runs
-          the board.
+          Build an {ROSTER_SLOTS.length}-slot fantasy roster off prompts, scored
+          on real NFL stats from 1970&ndash;2025. A Game Master runs the board.
         </p>
       </div>
 
@@ -75,8 +74,8 @@ export default function SetupScreen({
           className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-[var(--text)] outline-none placeholder:text-[var(--text-faint)] focus:border-[var(--amber)]"
         />
         <p className="mt-2 text-xs text-[var(--text-faint)]">
-          The GM enters every pick and judges it against the prompt &mdash;
-          they don&apos;t draft a roster themselves.
+          The GM enters every pick and judges it against the prompt &mdash; they
+          don&apos;t draft a roster themselves.
         </p>
       </section>
 
@@ -144,8 +143,8 @@ export default function SetupScreen({
           Prompts
         </h2>
         <p className="mb-3 text-xs text-[var(--text-faint)]">
-          Use the built-in random pool, or write your own prompt for every
-          round and save it as a reusable deck.
+          Use the built-in random pool, or write your own prompt for every round
+          and save it as a reusable deck.
         </p>
 
         <div className="flex flex-col gap-2">

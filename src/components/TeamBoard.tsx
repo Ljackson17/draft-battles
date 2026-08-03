@@ -1,7 +1,15 @@
-import type { GamePlayer } from "@/lib/types";
-import { ROSTER_SLOTS, SLOT_LABELS } from "@/lib/roster";
+"use client";
+
+import { useState } from "react";
+import type { GamePlayer, RosterSlot } from "@/lib/types";
+import {
+  ROSTER_SLOTS,
+  SLOT_ELIGIBLE_POSITIONS,
+  SLOT_LABELS,
+} from "@/lib/roster";
 import { formatPoints, revealedScore } from "@/lib/scoring";
 import { teamClass } from "@/lib/teamColors";
+import PlayerPicker from "./PlayerPicker";
 
 interface Props {
   players: GamePlayer[];
@@ -9,15 +17,49 @@ interface Props {
   /** Number of slots (from the front of ROSTER_SLOTS) whose points are
    * visible. 0 keeps every score hidden — picks show name/season only. */
   revealedCount: number;
+  usedPlayerSeasons?: Set<string>;
+  /** Presence of these three enables click-to-edit on already-entered
+   * picks (misclick fixes). Omit all three to render read-only, as in
+   * the reveal phase where scores are mid-reveal. */
+  onEditLockValid?: (
+    playerId: string,
+    slot: RosterSlot,
+    name: string,
+    season: number,
+  ) => void;
+  onEditMarkBrick?: (playerId: string, slot: RosterSlot) => void;
+  onClearPick?: (playerId: string, slot: RosterSlot) => void;
 }
 
 export default function TeamBoard({
   players,
   activePlayerId,
   revealedCount,
+  usedPlayerSeasons = new Set(),
+  onEditLockValid,
+  onEditMarkBrick,
+  onClearPick,
 }: Props) {
   const totals = players.map((p) => revealedScore(p, revealedCount));
   const leadTotal = revealedCount > 0 ? Math.max(...totals) : -1;
+  const editable = Boolean(onEditLockValid && onEditMarkBrick && onClearPick);
+
+  const [editing, setEditing] = useState<{
+    playerId: string;
+    slot: RosterSlot;
+  } | null>(null);
+
+  const editingPlayer = editing
+    ? players.find((p) => p.id === editing.playerId)
+    : undefined;
+  const editingPick = editing ? editingPlayer?.roster[editing.slot] : undefined;
+
+  const seasonsExcludingEditingPick = (() => {
+    if (!editing || editingPick?.status !== "filled") return usedPlayerSeasons;
+    const withoutOwnPick = new Set(usedPlayerSeasons);
+    withoutOwnPick.delete(`${editingPick.playerName}|${editingPick.season}`);
+    return withoutOwnPick;
+  })();
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--surface)]">
@@ -66,10 +108,17 @@ export default function TeamBoard({
               </div>
               {players.map((p) => {
                 const pick = p.roster[slot];
+                const canEdit = editable && Boolean(pick);
                 return (
-                  <div
+                  <button
                     key={p.id}
-                    className="flex flex-col justify-center border-l border-[var(--line)] px-4"
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => setEditing({ playerId: p.id, slot })}
+                    title={canEdit ? "Fix this pick" : undefined}
+                    className={`flex flex-col justify-center border-l border-[var(--line)] px-4 text-left ${
+                      canEdit ? "cursor-pointer hover:bg-[var(--surface-2)]" : "cursor-default"
+                    }`}
                   >
                     {!pick && (
                       <span className="text-[var(--text-faint)]">—</span>
@@ -90,7 +139,7 @@ export default function TeamBoard({
                         </p>
                       </div>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -125,6 +174,58 @@ export default function TeamBoard({
           </div>
         ))}
       </div>
+
+      {editing && editingPlayer && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setEditing(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="font-heading text-xs font-semibold uppercase tracking-[0.2em] text-[var(--amber)]">
+                  Fix pick &middot; {SLOT_LABELS[editing.slot]}
+                </p>
+                <p className="font-display text-lg tracking-wide text-[var(--text)]">
+                  {editingPlayer.name}
+                </p>
+              </div>
+              <button
+                onClick={() => setEditing(null)}
+                className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+              >
+                Close
+              </button>
+            </div>
+
+            <PlayerPicker
+              allowedPositions={SLOT_ELIGIBLE_POSITIONS[editing.slot]}
+              usedPlayerSeasons={seasonsExcludingEditingPick}
+              onLockValid={(name, season) => {
+                onEditLockValid?.(editing.playerId, editing.slot, name, season);
+                setEditing(null);
+              }}
+              onMarkBrick={() => {
+                onEditMarkBrick?.(editing.playerId, editing.slot);
+                setEditing(null);
+              }}
+            />
+
+            <button
+              onClick={() => {
+                onClearPick?.(editing.playerId, editing.slot);
+                setEditing(null);
+              }}
+              className="mt-3 w-full rounded-lg border border-[var(--line)] py-2.5 font-heading text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--text-faint)]"
+            >
+              Clear pick (leave empty)
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
