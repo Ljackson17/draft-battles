@@ -3,15 +3,14 @@
     "id": "starter-pack",
     "name": "Starter Pack",
     "prompts": {
-      "QB": "QB who was drafted on Day 3 (rounds 4-7) — can't be a name everyone knows",
-      "RB1": "RB with a 1,000-yard rushing season — but not in the year you draft him",
-      "RB2": "RB who had a 1,000-yard receiving season (any year)",
-      "WR1": "WR with a 1,000-yard receiving teammate that same season",
-      "WR2": "WR/TE who was a former college quarterback",
+      "QB": "Has thrown a 4,000-yard passing season in the NFL",
+      "RB1": "Has a 2,000 yard rushing season (doesn't have to be that season)",
+      "RB2": "Played with your QB at some point in their career",
+      "WR1": "Has a 12+ touchdown season",
+      "WR2": "Last name has a second meaning",
       "TE": "TE whose first name is longer than their last name",
-      "FLEX": "Player who was undrafted out of college",
+      "FLEX": "Player who has played for 3 or more teams in their career",
       "SUPERFLEX": "Player who has a Super Bowl ring"
     }
   }
 ]
-
