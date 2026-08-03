@@ -1,17 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import type { GamePlayer, GameSettings, GameState, RosterPick } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type {
+  GamePlayer,
+  GameSettings,
+  GameState,
+  PromptDeck,
+  RosterPick,
+} from "@/lib/types";
 import { ROSTER_SLOTS } from "@/lib/roster";
-import { drawPrompt } from "@/data/prompts";
+import { promptForSlot } from "@/data/prompts";
+import { RANDOM_DECK_ID } from "@/lib/decks";
 import { lookupPick } from "@/lib/playerData";
 import { pointsFor } from "@/lib/scoring";
+import {
+  clearGameState,
+  loadDecks,
+  loadGameState,
+  saveDecks,
+  saveGameState,
+} from "@/lib/storage";
 import SetupScreen from "@/components/SetupScreen";
 import DraftDesk from "@/components/DraftDesk";
 
 const DEFAULT_SETTINGS: GameSettings = {
   timerSeconds: 30,
   scoring: "ppr",
+  deckId: RANDOM_DECK_ID,
 };
 
 function initialState(): GameState {
@@ -32,6 +47,31 @@ function initialState(): GameState {
 
 export default function Home() {
   const [state, setState] = useState<GameState>(initialState);
+  const [decks, setDecks] = useState<PromptDeck[] | null>(null);
+
+  // Restore any in-progress game and saved prompt decks after mount (both
+  // are localStorage-backed external stores, so hydrating them has to
+  // happen client-side, one time, after the SSR-safe initial render).
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const saved = loadGameState();
+    if (saved) setState(saved);
+    setDecks(loadDecks());
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Keep the in-progress game persisted so an accidental refresh mid-round
+  // doesn't lose it. The blank setup form is never persisted.
+  useEffect(() => {
+    if (state.phase === "setup") return;
+    saveGameState(state);
+  }, [state]);
+
+  useEffect(() => {
+    if (decks !== null) saveDecks(decks);
+  }, [decks]);
+
+  const deckList = decks ?? [];
 
   const startGame = (
     names: string[],
@@ -43,13 +83,18 @@ export default function Home() {
       name,
       roster: {},
     }));
-    const prompt = drawPrompt([]);
+    const { prompt, usedPromptIds } = promptForSlot(
+      settings.deckId,
+      deckList,
+      0,
+      [],
+    );
     setState({
       phase: "draft",
       settings,
       gmName,
       players,
-      usedPromptIds: [prompt.id],
+      usedPromptIds,
       usedPlayerSeasons: new Set(),
       slotIndex: 0,
       turnOrder: players.map((p) => p.id),
@@ -98,7 +143,12 @@ export default function Home() {
       }
 
       const rotatedTurnOrder = [...prev.turnOrder.slice(1), prev.turnOrder[0]];
-      const nextPrompt = drawPrompt(prev.usedPromptIds);
+      const { prompt: nextPrompt, usedPromptIds } = promptForSlot(
+        prev.settings.deckId,
+        deckList,
+        nextSlotIndex,
+        prev.usedPromptIds,
+      );
 
       return {
         ...prev,
@@ -108,7 +158,7 @@ export default function Home() {
         turnOrder: rotatedTurnOrder,
         currentTurnIndex: 0,
         currentPrompt: nextPrompt,
-        usedPromptIds: [...prev.usedPromptIds, nextPrompt.id],
+        usedPromptIds,
       };
     });
   };
@@ -144,13 +194,18 @@ export default function Home() {
   const playAgain = () => {
     setState((prev) => {
       const players = prev.players.map((p) => ({ ...p, roster: {} }));
-      const prompt = drawPrompt([]);
+      const { prompt, usedPromptIds } = promptForSlot(
+        prev.settings.deckId,
+        deckList,
+        0,
+        [],
+      );
       return {
         phase: "draft",
         settings: prev.settings,
         gmName: prev.gmName,
         players,
-        usedPromptIds: [prompt.id],
+        usedPromptIds,
         usedPlayerSeasons: new Set(),
         slotIndex: 0,
         turnOrder: players.map((p) => p.id),
@@ -161,10 +216,28 @@ export default function Home() {
     });
   };
 
-  const newGame = () => setState(initialState());
+  const newGame = () => {
+    clearGameState();
+    setState(initialState());
+  };
+
+  const createDeck = (deck: PromptDeck) =>
+    setDecks((prev) => [...(prev ?? []), deck]);
+  const updateDeck = (deck: PromptDeck) =>
+    setDecks((prev) => (prev ?? []).map((d) => (d.id === deck.id ? deck : d)));
+  const deleteDeck = (id: string) =>
+    setDecks((prev) => (prev ?? []).filter((d) => d.id !== id));
 
   if (state.phase === "setup") {
-    return <SetupScreen onStart={startGame} />;
+    return (
+      <SetupScreen
+        onStart={startGame}
+        decks={deckList}
+        onCreateDeck={createDeck}
+        onUpdateDeck={updateDeck}
+        onDeleteDeck={deleteDeck}
+      />
+    );
   }
 
   return (

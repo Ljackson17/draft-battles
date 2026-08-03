@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import type { GameSettings } from "@/lib/types";
+import type { GameSettings, PromptDeck } from "@/lib/types";
 import { ROSTER_SLOTS, SLOT_LABELS } from "@/lib/roster";
+import { RANDOM_DECK_ID } from "@/lib/decks";
 import { teamClass } from "@/lib/teamColors";
+import PromptDeckEditor from "./PromptDeckEditor";
 
 interface Props {
   onStart: (
@@ -11,13 +13,27 @@ interface Props {
     gmName: string,
     settings: GameSettings,
   ) => void;
+  decks: PromptDeck[];
+  onCreateDeck: (deck: PromptDeck) => void;
+  onUpdateDeck: (deck: PromptDeck) => void;
+  onDeleteDeck: (id: string) => void;
 }
 
-export default function SetupScreen({ onStart }: Props) {
+export default function SetupScreen({
+  onStart,
+  decks,
+  onCreateDeck,
+  onUpdateDeck,
+  onDeleteDeck,
+}: Props) {
   const [gmName, setGmName] = useState("");
   const [names, setNames] = useState<string[]>(["", "", ""]);
   const [timerSeconds, setTimerSeconds] = useState(30);
   const [scoring, setScoring] = useState<"standard" | "ppr">("ppr");
+  const [deckId, setDeckId] = useState<string>(RANDOM_DECK_ID);
+  const [editingDeck, setEditingDeck] = useState<
+    "new" | PromptDeck | null
+  >(null);
 
   const updateName = (i: number, value: string) => {
     setNames((prev) => prev.map((n, idx) => (idx === i ? value : n)));
@@ -121,6 +137,92 @@ export default function SetupScreen({ onStart }: Props) {
         </p>
       </section>
 
+      <section className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
+        <h2 className="mb-1 font-heading text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
+          Prompts
+        </h2>
+        <p className="mb-3 text-xs text-[var(--text-faint)]">
+          Use the built-in random pool, or write your own prompt for every
+          round and save it as a reusable deck.
+        </p>
+
+        <div className="flex flex-col gap-2">
+          <button
+            onClick={() => setDeckId(RANDOM_DECK_ID)}
+            className={`flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition ${
+              deckId === RANDOM_DECK_ID
+                ? "border-[var(--amber)] bg-[color-mix(in_srgb,var(--amber)_14%,transparent)]"
+                : "border-[var(--line)] hover:border-[var(--text-faint)]"
+            }`}
+          >
+            <span className="font-heading text-sm font-semibold uppercase tracking-wide text-[var(--text)]">
+              🎲 Random mix
+            </span>
+            <span className="text-xs text-[var(--text-faint)]">
+              Built-in prompt pool
+            </span>
+          </button>
+
+          {decks.map((deck) => (
+            <div
+              key={deck.id}
+              className={`flex items-center gap-2 rounded-lg border px-3 py-2.5 transition ${
+                deckId === deck.id
+                  ? "border-[var(--amber)] bg-[color-mix(in_srgb,var(--amber)_14%,transparent)]"
+                  : "border-[var(--line)] hover:border-[var(--text-faint)]"
+              }`}
+            >
+              <button
+                onClick={() => setDeckId(deck.id)}
+                className="flex-1 text-left font-heading text-sm font-semibold uppercase tracking-wide text-[var(--text)]"
+              >
+                {deck.name}
+              </button>
+              <button
+                onClick={() => setEditingDeck(deck)}
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--amber)]"
+              >
+                edit
+              </button>
+              <button
+                onClick={() => {
+                  if (deckId === deck.id) setDeckId(RANDOM_DECK_ID);
+                  onDeleteDeck(deck.id);
+                }}
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--crimson)]"
+              >
+                delete
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {editingDeck ? (
+          <div className="mt-3">
+            <PromptDeckEditor
+              initialDeck={editingDeck === "new" ? undefined : editingDeck}
+              onSave={(deck) => {
+                if (editingDeck === "new") {
+                  onCreateDeck(deck);
+                } else {
+                  onUpdateDeck(deck);
+                }
+                setDeckId(deck.id);
+                setEditingDeck(null);
+              }}
+              onCancel={() => setEditingDeck(null)}
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setEditingDeck("new")}
+            className="mt-3 font-heading text-sm font-semibold uppercase tracking-wide text-[var(--amber)] hover:brightness-110"
+          >
+            + New prompt deck
+          </button>
+        )}
+      </section>
+
       <section className="grid grid-cols-2 gap-4">
         <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <label className="mb-2 block font-heading text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
@@ -164,6 +266,7 @@ export default function SetupScreen({ onStart }: Props) {
           onStart(validNames, gmName.trim(), {
             timerSeconds,
             scoring,
+            deckId,
           })
         }
         className="rounded-xl bg-[var(--amber)] py-4 font-heading text-lg font-bold uppercase tracking-wide text-[#1a1204] transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"

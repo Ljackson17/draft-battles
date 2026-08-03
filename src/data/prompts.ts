@@ -1,4 +1,5 @@
-import type { Prompt } from "@/lib/types";
+import type { Prompt, PromptDeck } from "@/lib/types";
+import { RANDOM_DECK_ID } from "@/lib/decks";
 
 // BDGE-style draft prompts. Legality of a pick against the prompt is judged
 // by the group (honor system) — the app only handles scoring once a
@@ -62,4 +63,24 @@ export function drawPrompt(usedIds: number[]): Prompt {
   const available = PROMPTS.filter((p) => !usedIds.includes(p.id));
   const pool = available.length > 0 ? available : PROMPTS;
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** Resolves the prompt for a given round. A custom deck supplies a fixed
+ * prompt per slot index; the "random" deck falls back to drawPrompt's
+ * no-repeat pool draw. */
+export function promptForSlot(
+  deckId: string,
+  decks: PromptDeck[],
+  slotIndex: number,
+  usedPromptIds: number[],
+): { prompt: Prompt; usedPromptIds: number[] } {
+  if (deckId !== RANDOM_DECK_ID) {
+    const deck = decks.find((d) => d.id === deckId);
+    const text = deck?.prompts[slotIndex]?.trim();
+    if (text) {
+      return { prompt: { id: -(slotIndex + 1), text }, usedPromptIds };
+    }
+  }
+  const prompt = drawPrompt(usedPromptIds);
+  return { prompt, usedPromptIds: [...usedPromptIds, prompt.id] };
 }

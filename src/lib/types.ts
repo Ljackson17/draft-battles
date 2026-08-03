@@ -47,11 +47,20 @@ export interface Prompt {
   text: string;
 }
 
+/** A saved, reusable set of prompts — one per roster slot, in ROSTER_SLOTS
+ * order — so a GM can pre-write an entire game's rounds ahead of time. */
+export interface PromptDeck {
+  id: string;
+  name: string;
+  prompts: string[];
+}
+
 export type Phase = "setup" | "draft" | "reveal";
 
 export interface GameSettings {
   timerSeconds: number;
   scoring: ScoringFormat;
+  deckId: string;
 }
 
 export interface GameState {
