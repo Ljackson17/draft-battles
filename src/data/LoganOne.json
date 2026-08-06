@@ -1,0 +1,16 @@
+[
+  {
+    "id": "Logan-One",
+    "name": "Logan One",
+    "prompts": {
+      "QB": "Has had a season with 10 rushing td's",
+      "RB1": "Won the Heisman Trophy",
+      "RB2": "J named (first or last) RB",
+      "WR1": "Was terrible as a rookie (<100 fpts)",
+      "WR2": "Second or later round pick",
+      "TE": "First Round Pick",
+      "FLEX": "Has a personal celly",
+      "SUPERFLEX": "Recieved an MVP Vote but never won"
+    }
+  }
+]

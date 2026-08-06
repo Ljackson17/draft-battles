@@ -1,0 +1,16 @@
+[
+  {
+    "id": "Logan-Three",
+    "name": "Logan Three",
+    "prompts": {
+      "QB": "Top 20 all time in passing yards",
+      "RB1": "Any rb, any year, but flip a coin. If you get it wrong you get them 5 years earlier",
+      "RB2": "270+ carries in chosen season",
+      "WR1": "100+ ypg in chosen season",
+      "WR2": "90-10's WR",
+      "TE": "Has had a 50+ yard touchdown",
+      "FLEX": "Has been franchise tagged",
+      "SUPERFLEX": "has a podcast or frequently appears on one"
+    }
+  }
+]

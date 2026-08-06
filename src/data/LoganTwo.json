@@ -1,0 +1,16 @@
+[
+  {
+    "id": "Logan-Two",
+    "name": "Logan Two",
+    "prompts": {
+      "QB": "1985",
+      "RB1": "Team logo has a letter in it",
+      "RB2": "More recieving yards than rushing yards in that season",
+      "WR1": "5'10 or shorter",
+      "WR2": "Ask siri for a team, pick wr from that team",
+      "TE": "Iowa",
+      "FLEX": "Undrafted player",
+      "SUPERFLEX": "Does not go by government name"
+    }
+  }
+]
