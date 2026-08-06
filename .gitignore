@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# cached raw nflverse/kaggle downloads (regenerate with scripts/build_dataset.py)
+/scripts/raw/
+/scripts/raw_kaggle/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -16,6 +16,15 @@
   --violet: #9b7bf0;
   --mint: #3fcb8c;
 
+  /* Position-family accents for the roster grid rows — independent of the
+     jersey (team) colors above, which stay on the player columns. */
+  --pos-qb: #6c9ff2;
+  --pos-rb: #57c785;
+  --pos-wr: #e8a23a;
+  --pos-te: #c77dd6;
+  --pos-flex: #4fc3c9;
+  --pos-sf: #e2704f;
+
   --background: var(--bg);
   --foreground: var(--text);
 }

@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import type { GamePlayer, RosterSlot } from "@/lib/types";
 import {
   ROSTER_SLOTS,
+  SLOT_ACCENT,
   SLOT_ELIGIBLE_POSITIONS,
   SLOT_LABELS,
 } from "@/lib/roster";
 import { formatPoints, revealedScore } from "@/lib/scoring";
 import { teamClass } from "@/lib/teamColors";
+import { teamLogoUrl } from "@/lib/teamLogos";
 import PlayerPicker from "./PlayerPicker";
 
 interface Props {
@@ -75,9 +78,8 @@ export default function TeamBoard({
         {players.map((p, i) => (
           <div
             key={p.id}
-            className={`${teamClass(i)} relative border-l border-[var(--line)] px-4 py-3 ${
-              p.id === activePlayerId ? "team-tint" : ""
-            }`}
+            className={`${teamClass(i)} relative border-l border-[var(--line)] px-4 py-3 ${p.id === activePlayerId ? "team-tint" : ""
+              }`}
           >
             <span
               className="absolute inset-x-0 top-0 h-[3px]"
@@ -101,7 +103,10 @@ export default function TeamBoard({
                 gridTemplateColumns: `88px repeat(${players.length}, 1fr)`,
               }}
             >
-              <div className="flex flex-col justify-center px-3">
+              <div
+                className="flex flex-col justify-center px-3"
+                style={{ borderLeft: `3px solid ${SLOT_ACCENT[slot]}` }}
+              >
                 <span className="font-heading text-sm font-bold uppercase tracking-wide text-[var(--text-muted)]">
                   {SLOT_LABELS[slot].split(" ")[0]}
                 </span>
@@ -109,6 +114,8 @@ export default function TeamBoard({
               {players.map((p) => {
                 const pick = p.roster[slot];
                 const canEdit = editable && Boolean(pick);
+                const logoUrl =
+                  pick?.status === "filled" ? teamLogoUrl(pick.team) : null;
                 return (
                   <button
                     key={p.id}
@@ -116,9 +123,8 @@ export default function TeamBoard({
                     disabled={!canEdit}
                     onClick={() => setEditing({ playerId: p.id, slot })}
                     title={canEdit ? "Fix this pick" : undefined}
-                    className={`flex flex-col justify-center border-l border-[var(--line)] px-4 text-left ${
-                      canEdit ? "cursor-pointer hover:bg-[var(--surface-2)]" : "cursor-default"
-                    }`}
+                    className={`flex flex-col justify-center border-l border-[var(--line)] px-4 text-left ${canEdit ? "cursor-pointer hover:bg-[var(--surface-2)]" : "cursor-default"
+                      }`}
                   >
                     {!pick && (
                       <span className="text-[var(--text-faint)]">—</span>
@@ -129,14 +135,27 @@ export default function TeamBoard({
                       </span>
                     )}
                     {pick?.status === "filled" && (
-                      <div className="leading-tight">
-                        <p className="truncate font-medium text-[var(--text)]">
-                          {pick.playerName}
-                        </p>
-                        <p className="font-mono text-xs text-[var(--text-muted)]">
-                          {pick.season}
-                          {revealed ? ` · ${formatPoints(pick.points)} pts` : ""}
-                        </p>
+                      <div className="flex items-center gap-2 leading-tight">
+                        {logoUrl && (
+                          <Image
+                            src={logoUrl}
+                            alt=""
+                            width={20}
+                            height={20}
+                            className="shrink-0 object-contain"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-[var(--text)]">
+                            {pick.playerName}
+                          </p>
+                          <p className="font-mono text-xs text-[var(--text-muted)]">
+                            {pick.season}
+                            {revealed
+                              ? ` · ${formatPoints(pick.points)} pts`
+                              : ""}
+                          </p>
+                        </div>
                       </div>
                     )}
                   </button>
@@ -159,9 +178,8 @@ export default function TeamBoard({
         {players.map((p, i) => (
           <div
             key={p.id}
-            className={`${teamClass(i)} flex items-center border-l border-[var(--line)] px-4 py-3 ${
-              totals[i] === leadTotal ? "team-tint-strong" : ""
-            }`}
+            className={`${teamClass(i)} flex items-center border-l border-[var(--line)] px-4 py-3 ${totals[i] === leadTotal ? "team-tint-strong" : ""
+              }`}
           >
             <span
               className="font-mono text-2xl font-semibold"

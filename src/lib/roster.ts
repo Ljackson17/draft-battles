@@ -32,3 +32,15 @@ export const SLOT_LABELS: Record<RosterSlot, string> = {
   FLEX: "FLEX (RB/WR/TE)",
   SUPERFLEX: "SUPERFLEX (Any)",
 };
+
+/** Position-family accent color for each row of the roster grid. */
+export const SLOT_ACCENT: Record<RosterSlot, string> = {
+  QB: "var(--pos-qb)",
+  RB1: "var(--pos-rb)",
+  RB2: "var(--pos-rb)",
+  WR1: "var(--pos-wr)",
+  WR2: "var(--pos-wr)",
+  TE: "var(--pos-te)",
+  FLEX: "var(--pos-flex)",
+  SUPERFLEX: "var(--pos-sf)",
+};
