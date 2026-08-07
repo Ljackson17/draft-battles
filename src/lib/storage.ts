@@ -1,50 +1,50 @@
-import type { GameState, PromptDeck } from "./types";
+import type { MatchState, PromptDeck } from "./types";
 
-const GAME_KEY = "draft-battles:game:v1";
+const MATCH_KEY = "draft-battles:match:v2";
 const DECKS_KEY = "draft-battles:decks:v1";
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
 }
 
-export function saveGameState(state: GameState) {
+export function saveMatchState(state: MatchState) {
   if (!isBrowser()) return;
   try {
     const serializable = {
       ...state,
-      usedPlayerSeasons: Array.from(state.usedPlayerSeasons),
+      usedPlayerNames: Array.from(state.usedPlayerNames),
     };
-    window.localStorage.setItem(GAME_KEY, JSON.stringify(serializable));
+    window.localStorage.setItem(MATCH_KEY, JSON.stringify(serializable));
   } catch {
     // localStorage unavailable (private browsing, quota) — drop silently
   }
 }
 
-export function loadGameState(): GameState | null {
+export function loadMatchState(): MatchState | null {
   if (!isBrowser()) return null;
   try {
-    const raw = window.localStorage.getItem(GAME_KEY);
+    const raw = window.localStorage.getItem(MATCH_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (
       !parsed ||
       typeof parsed.phase !== "string" ||
-      !Array.isArray(parsed.players)
+      !Array.isArray(parsed.matchPlayers)
     ) {
       return null;
     }
     return {
       ...parsed,
-      usedPlayerSeasons: new Set<string>(parsed.usedPlayerSeasons ?? []),
-    } as GameState;
+      usedPlayerNames: new Set<string>(parsed.usedPlayerNames ?? []),
+    } as MatchState;
   } catch {
     return null;
   }
 }
 
-export function clearGameState() {
+export function clearMatchState() {
   if (!isBrowser()) return;
-  window.localStorage.removeItem(GAME_KEY);
+  window.localStorage.removeItem(MATCH_KEY);
 }
 
 export function saveDecks(decks: PromptDeck[]) {

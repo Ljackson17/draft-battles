@@ -20,7 +20,8 @@ interface Props {
   /** Number of slots (from the front of ROSTER_SLOTS) whose points are
    * visible. 0 keeps every score hidden — picks show name/season only. */
   revealedCount: number;
-  usedPlayerSeasons?: Set<string>;
+  /** Player names already drafted anywhere in the match. */
+  usedPlayerNames?: Set<string>;
   /** Presence of these three enables click-to-edit on already-entered
    * picks (misclick fixes). Omit all three to render read-only, as in
    * the reveal phase where scores are mid-reveal. */
@@ -38,7 +39,7 @@ export default function TeamBoard({
   players,
   activePlayerId,
   revealedCount,
-  usedPlayerSeasons = new Set(),
+  usedPlayerNames = new Set(),
   onEditLockValid,
   onEditMarkBrick,
   onClearPick,
@@ -57,10 +58,10 @@ export default function TeamBoard({
     : undefined;
   const editingPick = editing ? editingPlayer?.roster[editing.slot] : undefined;
 
-  const seasonsExcludingEditingPick = (() => {
-    if (!editing || editingPick?.status !== "filled") return usedPlayerSeasons;
-    const withoutOwnPick = new Set(usedPlayerSeasons);
-    withoutOwnPick.delete(`${editingPick.playerName}|${editingPick.season}`);
+  const namesExcludingEditingPick = (() => {
+    if (!editing || editingPick?.status !== "filled") return usedPlayerNames;
+    const withoutOwnPick = new Set(usedPlayerNames);
+    withoutOwnPick.delete(editingPick.playerName);
     return withoutOwnPick;
   })();
 
@@ -221,7 +222,7 @@ export default function TeamBoard({
 
             <PlayerPicker
               allowedPositions={SLOT_ELIGIBLE_POSITIONS[editing.slot]}
-              usedPlayerSeasons={seasonsExcludingEditingPick}
+              usedPlayerNames={namesExcludingEditingPick}
               onLockValid={(name, season) => {
                 onEditLockValid?.(editing.playerId, editing.slot, name, season);
                 setEditing(null);

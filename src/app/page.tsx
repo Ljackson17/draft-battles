@@ -3,71 +3,108 @@
 import { useEffect, useState } from "react";
 import type {
   GamePlayer,
-  GameSettings,
   GameState,
+  MatchSettings,
+  MatchState,
   PromptDeck,
   RosterPick,
   RosterSlot,
 } from "@/lib/types";
 import { ROSTER_SLOTS } from "@/lib/roster";
+import { BOARDS_PER_MATCH } from "@/lib/match";
 import { promptForSlot } from "@/data/prompts";
 import { RANDOM_DECK_ID } from "@/lib/decks";
 import { BUILT_IN_DECKS } from "@/lib/builtInDecks";
 import { lookupPick } from "@/lib/playerData";
-import { pointsFor } from "@/lib/scoring";
+import { computePlacementPoints, pointsFor, totalScore } from "@/lib/scoring";
 import {
-  clearGameState,
+  clearMatchState,
   loadDecks,
-  loadGameState,
+  loadMatchState,
   saveDecks,
-  saveGameState,
+  saveMatchState,
 } from "@/lib/storage";
 import SetupScreen from "@/components/SetupScreen";
 import DraftDesk from "@/components/DraftDesk";
+import MatchResultsScreen from "@/components/MatchResultsScreen";
 
-const DEFAULT_SETTINGS: GameSettings = {
+const DEFAULT_MATCH_SETTINGS: MatchSettings = {
   timerSeconds: 30,
   scoring: "ppr",
-  deckId: RANDOM_DECK_ID,
+  deckIds: Array(BOARDS_PER_MATCH).fill(RANDOM_DECK_ID),
 };
 
-function initialState(): GameState {
+function initialMatchState(): MatchState {
   return {
     phase: "setup",
-    settings: DEFAULT_SETTINGS,
+    settings: DEFAULT_MATCH_SETTINGS,
     gmName: "",
-    players: [],
-    usedPromptIds: [],
-    usedPlayerSeasons: new Set(),
+    matchPlayers: [],
+    boardIndex: 0,
+    standings: {},
+    usedPlayerNames: new Set(),
+    boardResults: [],
+    game: null,
+  };
+}
+
+function freshBoard(
+  matchPlayers: MatchState["matchPlayers"],
+  settings: MatchSettings,
+  boardIndex: number,
+  gmName: string,
+  deckList: PromptDeck[],
+): GameState {
+  const players: GamePlayer[] = matchPlayers.map((mp) => ({
+    id: mp.id,
+    name: mp.name,
+    roster: {},
+  }));
+  const { prompt, usedPromptIds } = promptForSlot(
+    settings.deckIds[boardIndex],
+    deckList,
+    0,
+    [],
+  );
+  return {
+    phase: "draft",
+    settings: {
+      timerSeconds: settings.timerSeconds,
+      scoring: settings.scoring,
+      deckId: settings.deckIds[boardIndex],
+    },
+    gmName,
+    players,
+    usedPromptIds,
     slotIndex: 0,
-    turnOrder: [],
+    turnOrder: players.map((p) => p.id),
     currentTurnIndex: 0,
-    currentPrompt: null,
+    currentPrompt: prompt,
     revealIndex: 0,
   };
 }
 
 export default function Home() {
-  const [state, setState] = useState<GameState>(initialState);
+  const [match, setMatch] = useState<MatchState>(initialMatchState);
   const [decks, setDecks] = useState<PromptDeck[] | null>(null);
 
-  // Restore any in-progress game and saved prompt decks after mount (both
+  // Restore any in-progress match and saved prompt decks after mount (both
   // are localStorage-backed external stores, so hydrating them has to
   // happen client-side, one time, after the SSR-safe initial render).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    const saved = loadGameState();
-    if (saved) setState(saved);
+    const saved = loadMatchState();
+    if (saved) setMatch(saved);
     setDecks(loadDecks());
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Keep the in-progress game persisted so an accidental refresh mid-round
+  // Keep the in-progress match persisted so an accidental refresh mid-round
   // doesn't lose it. The blank setup form is never persisted.
   useEffect(() => {
-    if (state.phase === "setup") return;
-    saveGameState(state);
-  }, [state]);
+    if (match.phase === "setup") return;
+    saveMatchState(match);
+  }, [match]);
 
   useEffect(() => {
     if (decks !== null) saveDecks(decks);
@@ -76,92 +113,86 @@ export default function Home() {
   const customDecks = decks ?? [];
   const deckList = [...BUILT_IN_DECKS, ...customDecks];
 
-  const startGame = (
+  const startMatch = (
     names: string[],
     gmName: string,
-    settings: GameSettings,
+    settings: MatchSettings,
   ) => {
-    const players: GamePlayer[] = names.map((name) => ({
+    const matchPlayers = names.map((name) => ({
       id: crypto.randomUUID(),
       name,
-      roster: {},
     }));
-    const { prompt, usedPromptIds } = promptForSlot(
-      settings.deckId,
-      deckList,
-      0,
-      [],
-    );
-    setState({
-      phase: "draft",
+    const game = freshBoard(matchPlayers, settings, 0, gmName, deckList);
+    setMatch({
+      phase: "board",
       settings,
       gmName,
-      players,
-      usedPromptIds,
-      usedPlayerSeasons: new Set(),
-      slotIndex: 0,
-      turnOrder: players.map((p) => p.id),
-      currentTurnIndex: 0,
-      currentPrompt: prompt,
-      revealIndex: 0,
+      matchPlayers,
+      boardIndex: 0,
+      standings: Object.fromEntries(matchPlayers.map((p) => [p.id, 0])),
+      usedPlayerNames: new Set(),
+      boardResults: [],
+      game,
     });
   };
 
   /** Applies a pick to the current player's roster immediately, then
    * advances the turn — or, if that was the slot's last pick, rolls the
-   * whole game over to the next slot (new prompt, rotated turn order). */
+   * board over to the reveal phase. */
   const applyPick = (pick: RosterPick) => {
-    setState((prev) => {
-      const slot = ROSTER_SLOTS[prev.slotIndex];
-      const currentPlayerId = prev.turnOrder[prev.currentTurnIndex];
-      const players = prev.players.map((p) =>
+    setMatch((prev) => {
+      if (!prev.game) return prev;
+      const game = prev.game;
+      const slot = ROSTER_SLOTS[game.slotIndex];
+      const currentPlayerId = game.turnOrder[game.currentTurnIndex];
+      const players = game.players.map((p) =>
         p.id === currentPlayerId
           ? { ...p, roster: { ...p.roster, [slot]: pick } }
           : p,
       );
-      const usedPlayerSeasons = new Set(prev.usedPlayerSeasons);
+      const usedPlayerNames = new Set(prev.usedPlayerNames);
       if (pick.status === "filled") {
-        usedPlayerSeasons.add(`${pick.playerName}|${pick.season}`);
+        usedPlayerNames.add(pick.playerName);
       }
 
-      const nextTurnIndex = prev.currentTurnIndex + 1;
-      if (nextTurnIndex < prev.turnOrder.length) {
+      const nextTurnIndex = game.currentTurnIndex + 1;
+      if (nextTurnIndex < game.turnOrder.length) {
         return {
           ...prev,
-          players,
-          usedPlayerSeasons,
-          currentTurnIndex: nextTurnIndex,
+          usedPlayerNames,
+          game: { ...game, players, currentTurnIndex: nextTurnIndex },
         };
       }
 
-      const nextSlotIndex = prev.slotIndex + 1;
+      const nextSlotIndex = game.slotIndex + 1;
       if (nextSlotIndex >= ROSTER_SLOTS.length) {
         return {
           ...prev,
-          players,
-          usedPlayerSeasons,
-          phase: "reveal" as const,
-          revealIndex: 0,
+          usedPlayerNames,
+          game: { ...game, players, phase: "reveal", revealIndex: 0 },
         };
       }
 
-      const rotatedTurnOrder = [...prev.turnOrder.slice(1), prev.turnOrder[0]];
+      const rotatedTurnOrder = [...game.turnOrder.slice(1), game.turnOrder[0]];
       const { prompt: nextPrompt, usedPromptIds } = promptForSlot(
-        prev.settings.deckId,
+        prev.settings.deckIds[prev.boardIndex],
         deckList,
         nextSlotIndex,
-        prev.usedPromptIds,
+        game.usedPromptIds,
       );
 
       return {
         ...prev,
-        players,
-        usedPlayerSeasons,
-        slotIndex: nextSlotIndex,
-        turnOrder: rotatedTurnOrder,
-        currentTurnIndex: 0,
-        currentPrompt: nextPrompt,
-        usedPromptIds,
+        usedPlayerNames,
+        game: {
+          ...game,
+          players,
+          slotIndex: nextSlotIndex,
+          turnOrder: rotatedTurnOrder,
+          currentTurnIndex: 0,
+          currentPrompt: nextPrompt,
+          usedPromptIds,
+        },
       };
     });
   };
@@ -170,7 +201,7 @@ export default function Home() {
     const found = lookupPick(name, season);
     if (!found) return;
     const points = pointsFor(
-      state.settings.scoring,
+      match.settings.scoring,
       found.fantasyPoints,
       found.fantasyPointsPpr,
     );
@@ -189,19 +220,25 @@ export default function Home() {
   /** Lets the GM fix a misclick on an already-entered pick, without
    * touching turn order or advancing the slot — only that one cell
    * changes. `pick` of null clears the slot back to empty. */
-  const editPick = (playerId: string, slot: RosterSlot, pick: RosterPick | null) => {
-    setState((prev) => {
-      const oldPick = prev.players.find((p) => p.id === playerId)?.roster[
+  const editPick = (
+    playerId: string,
+    slot: RosterSlot,
+    pick: RosterPick | null,
+  ) => {
+    setMatch((prev) => {
+      if (!prev.game) return prev;
+      const game = prev.game;
+      const oldPick = game.players.find((p) => p.id === playerId)?.roster[
         slot
       ];
-      const usedPlayerSeasons = new Set(prev.usedPlayerSeasons);
+      const usedPlayerNames = new Set(prev.usedPlayerNames);
       if (oldPick?.status === "filled") {
-        usedPlayerSeasons.delete(`${oldPick.playerName}|${oldPick.season}`);
+        usedPlayerNames.delete(oldPick.playerName);
       }
       if (pick?.status === "filled") {
-        usedPlayerSeasons.add(`${pick.playerName}|${pick.season}`);
+        usedPlayerNames.add(pick.playerName);
       }
-      const players = prev.players.map((p) => {
+      const players = game.players.map((p) => {
         if (p.id !== playerId) return p;
         const roster = { ...p.roster };
         if (pick) {
@@ -211,7 +248,7 @@ export default function Home() {
         }
         return { ...p, roster };
       });
-      return { ...prev, players, usedPlayerSeasons };
+      return { ...prev, usedPlayerNames, game: { ...game, players } };
     });
   };
 
@@ -224,7 +261,7 @@ export default function Home() {
     const found = lookupPick(name, season);
     if (!found) return;
     const points = pointsFor(
-      state.settings.scoring,
+      match.settings.scoring,
       found.fantasyPoints,
       found.fantasyPointsPpr,
     );
@@ -239,40 +276,74 @@ export default function Home() {
   };
 
   const revealNext = () => {
-    setState((prev) => ({
-      ...prev,
-      revealIndex: Math.min(prev.revealIndex + 1, ROSTER_SLOTS.length),
-    }));
+    setMatch((prev) =>
+      prev.game
+        ? {
+            ...prev,
+            game: {
+              ...prev.game,
+              revealIndex: Math.min(
+                prev.game.revealIndex + 1,
+                ROSTER_SLOTS.length,
+              ),
+            },
+          }
+        : prev,
+    );
   };
 
-  const playAgain = () => {
-    setState((prev) => {
-      const players = prev.players.map((p) => ({ ...p, roster: {} }));
-      const { prompt, usedPromptIds } = promptForSlot(
-        prev.settings.deckId,
+  /** Scores the just-finished board into the match standings, then either
+   * starts the next board or, after the last one, ends the match. */
+  const continueMatch = () => {
+    setMatch((prev) => {
+      if (!prev.game) return prev;
+      const scores: Record<string, number> = {};
+      prev.game.players.forEach((p) => {
+        scores[p.id] = totalScore(p);
+      });
+      const placementPoints = computePlacementPoints(scores);
+      const standings = { ...prev.standings };
+      for (const [id, pts] of Object.entries(placementPoints)) {
+        standings[id] = (standings[id] ?? 0) + pts;
+      }
+
+      const deckId = prev.settings.deckIds[prev.boardIndex];
+      const deck = deckList.find((d) => d.id === deckId);
+      const boardResults = [
+        ...prev.boardResults,
+        {
+          deckId,
+          deckName: deckId === RANDOM_DECK_ID ? "Random mix" : (deck?.name ?? "Deck"),
+          scores,
+          placementPoints,
+        },
+      ];
+
+      const nextBoardIndex = prev.boardIndex + 1;
+      if (nextBoardIndex >= prev.settings.deckIds.length) {
+        return {
+          ...prev,
+          phase: "complete",
+          standings,
+          boardResults,
+          game: null,
+        };
+      }
+
+      const game = freshBoard(
+        prev.matchPlayers,
+        prev.settings,
+        nextBoardIndex,
+        prev.gmName,
         deckList,
-        0,
-        [],
       );
-      return {
-        phase: "draft",
-        settings: prev.settings,
-        gmName: prev.gmName,
-        players,
-        usedPromptIds,
-        usedPlayerSeasons: new Set(),
-        slotIndex: 0,
-        turnOrder: players.map((p) => p.id),
-        currentTurnIndex: 0,
-        currentPrompt: prompt,
-        revealIndex: 0,
-      };
+      return { ...prev, boardIndex: nextBoardIndex, standings, boardResults, game };
     });
   };
 
-  const newGame = () => {
-    clearGameState();
-    setState(initialState());
+  const abandonMatch = () => {
+    clearMatchState();
+    setMatch(initialMatchState());
   };
 
   const createDeck = (deck: PromptDeck) =>
@@ -282,10 +353,10 @@ export default function Home() {
   const deleteDeck = (id: string) =>
     setDecks((prev) => (prev ?? []).filter((d) => d.id !== id));
 
-  if (state.phase === "setup") {
+  if (match.phase === "setup") {
     return (
       <SetupScreen
-        onStart={startGame}
+        onStart={startMatch}
         builtInDecks={BUILT_IN_DECKS}
         customDecks={customDecks}
         onCreateDeck={createDeck}
@@ -295,18 +366,34 @@ export default function Home() {
     );
   }
 
+  if (match.phase === "complete") {
+    return (
+      <MatchResultsScreen
+        matchPlayers={match.matchPlayers}
+        standings={match.standings}
+        boardResults={match.boardResults}
+        onNewMatch={abandonMatch}
+      />
+    );
+  }
+
+  if (!match.game) return null;
+
   return (
     <DraftDesk
-      phase={state.phase}
-      players={state.players}
-      slotIndex={state.slotIndex}
-      prompt={state.currentPrompt}
-      turnOrder={state.turnOrder}
-      currentTurnIndex={state.currentTurnIndex}
-      timerSeconds={state.settings.timerSeconds}
-      usedPlayerSeasons={state.usedPlayerSeasons}
-      gmName={state.gmName}
-      revealIndex={state.revealIndex}
+      phase={match.game.phase}
+      players={match.game.players}
+      slotIndex={match.game.slotIndex}
+      prompt={match.game.currentPrompt}
+      turnOrder={match.game.turnOrder}
+      currentTurnIndex={match.game.currentTurnIndex}
+      timerSeconds={match.settings.timerSeconds}
+      usedPlayerNames={match.usedPlayerNames}
+      gmName={match.gmName}
+      revealIndex={match.game.revealIndex}
+      boardIndex={match.boardIndex}
+      totalBoards={BOARDS_PER_MATCH}
+      matchStandings={match.standings}
       onLockValid={lockValidPick}
       onMarkBrick={markBrick}
       onEditLockValid={editLockValid}
@@ -315,8 +402,8 @@ export default function Home() {
       }
       onClearPick={(playerId, slot) => editPick(playerId, slot, null)}
       onRevealNext={revealNext}
-      onPlayAgain={playAgain}
-      onNewGame={newGame}
+      onContinue={continueMatch}
+      onAbandonMatch={abandonMatch}
     />
   );
 }

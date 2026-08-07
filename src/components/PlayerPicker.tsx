@@ -6,14 +6,16 @@ import type { Position } from "@/lib/types";
 
 interface Props {
   allowedPositions: Position[];
-  usedPlayerSeasons: Set<string>;
+  /** Player names already drafted anywhere in the match — filtered out of
+   * search results since a name can only be picked once per match. */
+  usedPlayerNames: Set<string>;
   onLockValid: (name: string, season: number) => void;
   onMarkBrick: () => void;
 }
 
 export default function PlayerPicker({
   allowedPositions,
-  usedPlayerSeasons,
+  usedPlayerNames,
   onLockValid,
   onMarkBrick,
 }: Props) {
@@ -22,8 +24,10 @@ export default function PlayerPicker({
 
   const suggestions = useMemo(() => {
     if (selectedName) return [];
-    return searchPlayerNames(query, 6, allowedPositions);
-  }, [query, selectedName, allowedPositions]);
+    return searchPlayerNames(query, 6, allowedPositions).filter(
+      (name) => !usedPlayerNames.has(name),
+    );
+  }, [query, selectedName, allowedPositions, usedPlayerNames]);
 
   const seasons = useMemo(() => {
     if (!selectedName) return [];
@@ -85,32 +89,19 @@ export default function PlayerPicker({
               </p>
             )}
             <div className="flex flex-wrap gap-1.5">
-              {seasons.map((s) => {
-                const key = `${selectedName}|${s.season}`;
-                const used = usedPlayerSeasons.has(key);
-                return (
-                  <button
-                    key={s.season}
-                    disabled={used}
-                    onClick={() => {
-                      onLockValid(selectedName, s.season);
-                      reset();
-                    }}
-                    title={
-                      used
-                        ? "Already drafted this game"
-                        : `${s.team} ${s.position}`
-                    }
-                    className={`rounded-md border px-2.5 py-1.5 font-mono text-sm transition ${
-                      used
-                        ? "cursor-not-allowed border-[var(--line)] text-[var(--text-faint)] line-through"
-                        : "border-[var(--line)] text-[var(--text)] hover:border-[var(--amber)] hover:bg-[var(--surface-2)]"
-                    }`}
-                  >
-                    {s.season}
-                  </button>
-                );
-              })}
+              {seasons.map((s) => (
+                <button
+                  key={s.season}
+                  onClick={() => {
+                    onLockValid(selectedName, s.season);
+                    reset();
+                  }}
+                  title={`${s.team} ${s.position}`}
+                  className="rounded-md border border-[var(--line)] px-2.5 py-1.5 font-mono text-sm text-[var(--text)] transition hover:border-[var(--amber)] hover:bg-[var(--surface-2)]"
+                >
+                  {s.season}
+                </button>
+              ))}
             </div>
           </div>
         )}

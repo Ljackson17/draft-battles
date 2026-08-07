@@ -8,7 +8,7 @@ import {
   SLOT_LABELS,
 } from "@/lib/roster";
 import { teamClass } from "@/lib/teamColors";
-import { formatPoints, totalScore } from "@/lib/scoring";
+import { computePlacementPoints, formatPoints, totalScore } from "@/lib/scoring";
 import PlayClock from "./PlayClock";
 import PlayerPicker from "./PlayerPicker";
 import TeamBoard from "./TeamBoard";
@@ -23,9 +23,14 @@ interface Props {
   turnOrder: string[];
   currentTurnIndex: number;
   timerSeconds: number;
-  usedPlayerSeasons: Set<string>;
+  usedPlayerNames: Set<string>;
   gmName: string;
   revealIndex: number;
+  boardIndex: number;
+  totalBoards: number;
+  /** Cumulative match points per player id, from boards completed before
+   * this one. */
+  matchStandings: Record<string, number>;
   onLockValid: (name: string, season: number) => void;
   onMarkBrick: () => void;
   onEditLockValid: (
@@ -37,8 +42,8 @@ interface Props {
   onEditMarkBrick: (playerId: string, slot: RosterSlot) => void;
   onClearPick: (playerId: string, slot: RosterSlot) => void;
   onRevealNext: () => void;
-  onPlayAgain: () => void;
-  onNewGame: () => void;
+  onContinue: () => void;
+  onAbandonMatch: () => void;
 }
 
 export default function DraftDesk({
@@ -49,17 +54,20 @@ export default function DraftDesk({
   turnOrder,
   currentTurnIndex,
   timerSeconds,
-  usedPlayerSeasons,
+  usedPlayerNames,
   gmName,
   revealIndex,
+  boardIndex,
+  totalBoards,
+  matchStandings,
   onLockValid,
   onMarkBrick,
   onEditLockValid,
   onEditMarkBrick,
   onClearPick,
   onRevealNext,
-  onPlayAgain,
-  onNewGame,
+  onContinue,
+  onAbandonMatch,
 }: Props) {
   const draftSlot: RosterSlot = ROSTER_SLOTS[slotIndex];
   const activePlayerId = turnOrder[currentTurnIndex];
@@ -68,11 +76,24 @@ export default function DraftDesk({
 
   const revealDone = revealIndex >= ROSTER_SLOTS.length;
   const revealSlot = !revealDone ? ROSTER_SLOTS[revealIndex] : null;
+  const isLastBoard = boardIndex === totalBoards - 1;
 
   const order = [...players]
     .map((p, i) => ({ p, i }))
     .sort((a, b) => totalScore(b.p) - totalScore(a.p));
   const winner = order[0];
+
+  const boardScores = Object.fromEntries(
+    players.map((p) => [p.id, totalScore(p)]),
+  );
+  const boardPlacementPoints = computePlacementPoints(boardScores);
+  const projectedStandings = [...players]
+    .map((p, i) => ({
+      p,
+      i,
+      pts: (matchStandings[p.id] ?? 0) + boardPlacementPoints[p.id],
+    }))
+    .sort((a, b) => b.pts - a.pts);
 
   return (
     <div className="flex h-dvh flex-col">
@@ -82,11 +103,12 @@ export default function DraftDesk({
             DRAFT BATTLES
           </h1>
           <span className="font-heading text-sm font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
+            Board {boardIndex + 1} / {totalBoards} —{" "}
             {phase === "draft" &&
               `Slot ${slotIndex + 1} / ${ROSTER_SLOTS.length} — ${SLOT_LABELS[draftSlot]}`}
             {phase === "reveal" &&
               (revealDone
-                ? "Final results"
+                ? "Board complete"
                 : `Revealing ${revealIndex + 1} / ${ROSTER_SLOTS.length} — ${SLOT_LABELS[revealSlot!]}`)}
           </span>
         </div>
@@ -99,12 +121,11 @@ export default function DraftDesk({
           <button
             onClick={() => {
               if (
-                phase === "reveal" ||
                 window.confirm(
-                  "Leave this draft and go back to the home screen? Current progress will be lost.",
+                  "Leave this match and go back to the home screen? Current progress will be lost.",
                 )
               ) {
-                onNewGame();
+                onAbandonMatch();
               }
             }}
             className="rounded-lg border border-[var(--line)] px-3 py-1.5 font-heading text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] transition hover:border-[var(--text-faint)]"
@@ -141,13 +162,13 @@ export default function DraftDesk({
           {phase === "reveal" && revealDone && (
             <>
               <p className="font-heading text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
-                Draft complete
+                Board {boardIndex + 1} winner
               </p>
               <p
                 className={`${winner ? teamClass(winner.i) : ""} font-display text-3xl leading-tight tracking-wide`}
                 style={{ color: winner ? "var(--team)" : "var(--text)" }}
               >
-                {winner?.p.name} wins
+                {winner?.p.name}
               </p>
               <ul className="flex flex-col gap-1.5">
                 {order.map(({ p, i }, rank) => (
@@ -167,7 +188,37 @@ export default function DraftDesk({
                       className="font-mono text-base font-semibold"
                       style={{ color: rank === 0 ? "var(--team)" : "var(--text)" }}
                     >
-                      {formatPoints(totalScore(p))}
+                      {formatPoints(totalScore(p))} pts
+                      <span className="ml-2 text-[var(--amber)]">
+                        +{formatPoints(boardPlacementPoints[p.id])}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-4 font-heading text-xs font-semibold uppercase tracking-[0.2em] text-[var(--text-muted)]">
+                Match standings
+              </p>
+              <ul className="flex flex-col gap-1.5">
+                {projectedStandings.map(({ p, i, pts }, rank) => (
+                  <li
+                    key={p.id}
+                    className={`${teamClass(i)} flex items-center justify-between rounded-lg border border-[var(--line)] px-3 py-2 ${
+                      rank === 0 ? "team-tint" : ""
+                    }`}
+                  >
+                    <span className="flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wide text-[var(--text)]">
+                      <span className="font-body">
+                        {MEDALS[rank] ?? `${rank + 1}.`}
+                      </span>
+                      {p.name}
+                    </span>
+                    <span
+                      className="font-mono text-base font-semibold"
+                      style={{ color: rank === 0 ? "var(--team)" : "var(--text)" }}
+                    >
+                      {formatPoints(pts)} pts
                     </span>
                   </li>
                 ))}
@@ -200,7 +251,7 @@ export default function DraftDesk({
             players={players}
             activePlayerId={phase === "draft" ? activePlayerId : undefined}
             revealedCount={phase === "reveal" ? revealIndex : 0}
-            usedPlayerSeasons={usedPlayerSeasons}
+            usedPlayerNames={usedPlayerNames}
             onEditLockValid={phase === "draft" ? onEditLockValid : undefined}
             onEditMarkBrick={phase === "draft" ? onEditMarkBrick : undefined}
             onClearPick={phase === "draft" ? onClearPick : undefined}
@@ -215,7 +266,7 @@ export default function DraftDesk({
               activePlayerIndex={activePlayerIndex}
               slot={draftSlot}
               timerSeconds={timerSeconds}
-              usedPlayerSeasons={usedPlayerSeasons}
+              usedPlayerNames={usedPlayerNames}
               onLockValid={onLockValid}
               onMarkBrick={onMarkBrick}
             />
@@ -241,16 +292,12 @@ export default function DraftDesk({
           {phase === "reveal" && revealDone && (
             <div className="flex flex-1 flex-col justify-center gap-3">
               <button
-                onClick={onPlayAgain}
+                onClick={onContinue}
                 className="rounded-xl bg-[var(--amber)] py-3.5 font-heading text-base font-bold uppercase tracking-wide text-[#1a1204] transition hover:brightness-110"
               >
-                Play again
-              </button>
-              <button
-                onClick={onNewGame}
-                className="rounded-xl border border-[var(--line)] py-3.5 font-heading text-base font-bold uppercase tracking-wide text-[var(--text)] transition hover:border-[var(--text-faint)]"
-              >
-                New game
+                {isLastBoard
+                  ? "See final match results"
+                  : `Continue to board ${boardIndex + 2}`}
               </button>
             </div>
           )}
@@ -265,7 +312,7 @@ function PickPanel({
   activePlayerIndex,
   slot,
   timerSeconds,
-  usedPlayerSeasons,
+  usedPlayerNames,
   onLockValid,
   onMarkBrick,
 }: {
@@ -273,7 +320,7 @@ function PickPanel({
   activePlayerIndex: number;
   slot: RosterSlot;
   timerSeconds: number;
-  usedPlayerSeasons: Set<string>;
+  usedPlayerNames: Set<string>;
   onLockValid: (name: string, season: number) => void;
   onMarkBrick: () => void;
 }) {
@@ -342,7 +389,7 @@ function PickPanel({
 
       <PlayerPicker
         allowedPositions={SLOT_ELIGIBLE_POSITIONS[slot]}
-        usedPlayerSeasons={usedPlayerSeasons}
+        usedPlayerNames={usedPlayerNames}
         onLockValid={onLockValid}
         onMarkBrick={onMarkBrick}
       />

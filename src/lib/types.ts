@@ -55,7 +55,7 @@ export interface PromptDeck {
   prompts: Record<RosterSlot, string>;
 }
 
-export type Phase = "setup" | "draft" | "reveal";
+export type Phase = "draft" | "reveal";
 
 export interface GameSettings {
   timerSeconds: number;
@@ -63,16 +63,58 @@ export interface GameSettings {
   deckId: string;
 }
 
+/** A single board's in-progress or completed draft, nested inside a
+ * MatchState. Cross-board/cross-player dedup (usedPlayerNames) lives on
+ * the match, not here, since a name can't repeat across the whole match. */
 export interface GameState {
   phase: Phase;
   settings: GameSettings;
   gmName: string;
   players: GamePlayer[];
   usedPromptIds: number[];
-  usedPlayerSeasons: Set<string>;
   slotIndex: number;
   turnOrder: string[];
   currentTurnIndex: number;
   currentPrompt: Prompt | null;
   revealIndex: number;
+}
+
+export interface MatchPlayer {
+  id: string;
+  name: string;
+}
+
+/** One completed board's outcome: raw fantasy-point totals plus the match
+ * points (10/5/3, ties averaged) that board awarded each player. */
+export interface BoardResult {
+  deckId: string;
+  deckName: string;
+  scores: Record<string, number>;
+  placementPoints: Record<string, number>;
+}
+
+export interface MatchSettings {
+  timerSeconds: number;
+  scoring: ScoringFormat;
+  /** One deck id per board, in play order. */
+  deckIds: string[];
+}
+
+export type MatchPhase = "setup" | "board" | "complete";
+
+export interface MatchState {
+  phase: MatchPhase;
+  settings: MatchSettings;
+  gmName: string;
+  matchPlayers: MatchPlayer[];
+  boardIndex: number;
+  /** Cumulative match points per player id, updated after each board. */
+  standings: Record<string, number>;
+  /** Player names already drafted anywhere in the match — a name can only
+   * be picked once across all boards. */
+  usedPlayerNames: Set<string>;
+  boardResults: BoardResult[];
+  /** The board currently being drafted/revealed. Null only when phase is
+   * "setup" or "complete". */
+  game: GameState | null;
 }
