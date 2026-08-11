@@ -12,6 +12,8 @@ import {
 import { formatPoints, revealedScore } from "@/lib/scoring";
 import { teamClass } from "@/lib/teamColors";
 import { teamLogoUrl } from "@/lib/teamLogos";
+import { teamCardGradient } from "@/lib/teamBrandColors";
+import { playerAvatarUrl } from "@/lib/playerAvatars";
 import PlayerPicker from "./PlayerPicker";
 
 interface Props {
@@ -117,6 +119,14 @@ export default function TeamBoard({
                 const canEdit = editable && Boolean(pick);
                 const logoUrl =
                   pick?.status === "filled" ? teamLogoUrl(pick.team) : null;
+                const avatarUrl =
+                  pick?.status === "filled"
+                    ? playerAvatarUrl(pick.playerName)
+                    : null;
+                const cardGradient =
+                  pick?.status === "filled"
+                    ? teamCardGradient(pick.team)
+                    : null;
                 return (
                   <button
                     key={p.id}
@@ -124,7 +134,8 @@ export default function TeamBoard({
                     disabled={!canEdit}
                     onClick={() => setEditing({ playerId: p.id, slot })}
                     title={canEdit ? "Fix this pick" : undefined}
-                    className={`flex flex-col justify-center border-l border-[var(--line)] px-4 text-left ${canEdit ? "cursor-pointer hover:bg-[var(--surface-2)]" : "cursor-default"
+                    style={cardGradient ? { backgroundImage: cardGradient } : undefined}
+                    className={`flex flex-col justify-center border-l border-[var(--line)] px-4 py-3 text-left ${canEdit ? "cursor-pointer hover:bg-[var(--surface-2)]" : "cursor-default"
                       }`}
                   >
                     {!pick && (
@@ -136,17 +147,38 @@ export default function TeamBoard({
                       </span>
                     )}
                     {pick?.status === "filled" && (
-                      <div className="flex items-center gap-2 leading-tight">
-                        {logoUrl && (
-                          <Image
-                            src={logoUrl}
-                            alt=""
-                            width={20}
-                            height={20}
-                            className="shrink-0 object-contain"
-                          />
+                      <div className="flex flex-col items-center gap-1.5 text-center leading-tight">
+                        {avatarUrl ? (
+                          <div className="relative shrink-0">
+                            <Image
+                              src={avatarUrl}
+                              alt=""
+                              width={64}
+                              height={64}
+                              className="rounded-full object-cover ring-2 ring-[var(--surface)]"
+                            />
+                            {logoUrl && (
+                              <Image
+                                src={logoUrl}
+                                alt=""
+                                width={28}
+                                height={28}
+                                className="absolute -bottom-1.5 -right-1.5 rounded-full bg-[var(--surface)] object-contain ring-1 ring-[var(--line)]"
+                              />
+                            )}
+                          </div>
+                        ) : (
+                          logoUrl && (
+                            <Image
+                              src={logoUrl}
+                              alt=""
+                              width={48}
+                              height={48}
+                              className="shrink-0 object-contain"
+                            />
+                          )
                         )}
-                        <div className="min-w-0">
+                        <div className="w-full min-w-0">
                           <p className="truncate font-medium text-[var(--text)]">
                             {pick.playerName}
                           </p>

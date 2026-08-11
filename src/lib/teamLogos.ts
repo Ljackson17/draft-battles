@@ -11,7 +11,7 @@
  * 1995-2015). We can't disambiguate by code alone, so these default to the
  * more recent franchise — the older team may show the wrong logo.
  */
-const TEAM_CODE_MAP: Record<string, string> = {
+export const TEAM_CODE_MAP: Record<string, string> = {
   ARI: "ari",
   ATL: "atl",
   BAL: "bal",
