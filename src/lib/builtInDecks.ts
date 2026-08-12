@@ -1,6 +1,9 @@
+import fs from "fs";
+import path from "path";
 import type { PromptDeck } from "./types";
 import { isDeckComplete } from "./decks";
-import raw from "@/data/builtInDecks.json";
+
+const DECKS_DIR = path.join(process.cwd(), "src/data/decks");
 
 function isValidDeck(deck: unknown): deck is PromptDeck {
   const d = deck as Partial<PromptDeck> | null;
@@ -17,14 +20,31 @@ function isValidDeck(deck: unknown): deck is PromptDeck {
   );
 }
 
-/** Prompt decks committed straight to git (src/data/builtInDecks.json) so
- * anyone can add a deck via PR without touching app code. Loaded once at
- * build time; a malformed entry is dropped with a console warning instead
- * of crashing the app for everyone. */
-export const BUILT_IN_DECKS: PromptDeck[] = (raw as unknown[]).filter(
-  (deck): deck is PromptDeck => {
-    if (isValidDeck(deck)) return true;
-    console.error("Skipping malformed built-in deck:", deck);
-    return false;
-  },
-);
+/** Prompt decks committed straight to git as JSON files under
+ * src/data/decks/ — drop in a new file (one deck object, or an array of
+ * decks) and it's picked up automatically, no code changes needed.
+ *
+ * Reads the filesystem, so this only works from a Server Component; it
+ * can't be imported into "use client" code. */
+export function loadBuiltInDecks(): PromptDeck[] {
+  const files = fs
+    .readdirSync(DECKS_DIR)
+    .filter((f) => f.endsWith(".json"))
+    .sort();
+
+  const decks: PromptDeck[] = [];
+  for (const file of files) {
+    const raw = JSON.parse(
+      fs.readFileSync(path.join(DECKS_DIR, file), "utf-8"),
+    );
+    const entries = Array.isArray(raw) ? raw : [raw];
+    for (const entry of entries) {
+      if (isValidDeck(entry)) {
+        decks.push(entry);
+      } else {
+        console.error(`Skipping malformed built-in deck in ${file}:`, entry);
+      }
+    }
+  }
+  return decks;
+}
